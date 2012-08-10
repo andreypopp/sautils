@@ -10,14 +10,15 @@
 
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy import select, and_, literal, cast, types
-from sqlalchemy.sql.expression import Executable, ClauseElement, Alias
+from sqlalchemy.sql.expression import (
+    Executable, ClauseElement, Alias, ColumnClause)
 
 __all__ = ('insert_from_select', 'upsert_from_select', 'upsert', 'sqltype')
 
 class InsertFromSelect(Executable, ClauseElement):
     """ Insert from select"""
 
-    def __init__(self, table, select, *fields):
+    def __init__(self, table, select, *fields, **kw):
         self.table = table
         self.select = select
         self.fields = fields
@@ -41,7 +42,7 @@ def upsert_from_select(table, q, *fields):
     sq = q.alias('__q')
     pks = table.primary_key.columns
     q = (select([sq])
-        .select_from(sq.outerjoin(table,and_(*(sq.c[c.key] == c for c in pks))))
+        .select_from(sq.outerjoin(table,and_(*[sq.c[c.key] == c for c in pks])))
         .where(list(pks)[0] == None))
     return insert_from_select(table, q, *fields)
 
@@ -49,9 +50,7 @@ def upsert(table, **values):
     """ Upsert"""
     values = values.items()
     fields = [k for (k, v) in values]
-    vals = [cast(literal(v), types.Text).label(k)
-            if isinstance(table.c[k].type, types.NullType)
-            else cast(literal(v), table.c[k].type).label(k)
+    vals = [cast(literal(v, table.c[k].type), table.c[k].type).label(k)
             for (k, v) in values]
     return upsert_from_select(table, select(vals), *fields)
 
