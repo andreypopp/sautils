@@ -9,10 +9,10 @@
 """
 
 from sqlalchemy.ext.compiler import compiles
-from sqlalchemy import select, and_, literal
+from sqlalchemy import select, and_, literal, cast, types
 from sqlalchemy.sql.expression import Executable, ClauseElement, Alias
 
-__all__ = ('insert_from_select', 'upsert_from_select', 'upsert')
+__all__ = ('insert_from_select', 'upsert_from_select', 'upsert', 'sqltype')
 
 class InsertFromSelect(Executable, ClauseElement):
     """ Insert from select"""
@@ -49,5 +49,28 @@ def upsert(table, **values):
     """ Upsert"""
     values = values.items()
     fields = [k for (k, v) in values]
-    return upsert_from_select(
-        table, select([literal(v).label(k) for (k, v) in values]), *fields)
+    vals = [cast(literal(v), types.Text).label(k)
+            if isinstance(table.c[k].type, types.NullType)
+            else cast(literal(v), table.c[k].type).label(k)
+            for (k, v) in values]
+    return upsert_from_select(table, select(vals), *fields)
+
+class TypeCoercion(types.UserDefinedType):
+
+    def __init__(self, name):
+        self.name = name
+
+    def get_col_spec(self):
+        return self.name
+
+    def bind_processor(self, dialect):
+        def process(value):
+            return value
+        return process
+
+    def result_processor(self, dialect, coltype):
+        def process(value):
+            return value
+        return process
+
+sqltype = TypeCoercion
