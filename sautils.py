@@ -64,7 +64,7 @@ def idem_insert_from_select(table, q, *fields):
 def idem_insert(table, **values):
     """ Idempotent insert"""
     values = values.items()
-    fields = [k for (k, v) in values.items()]
+    fields = [k for (k, v) in values]
     vals = [cast(literal(v, table.c[k].type), table.c[k].type).label(k)
             for (k, v) in values]
     return idem_insert_from_select(table, select(vals), *fields)
